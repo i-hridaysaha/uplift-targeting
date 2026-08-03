@@ -75,12 +75,12 @@ models/            persisted model artifacts (gitignored)
 
 ## Roadmap
 
-1. Project setup — env, tooling, folder structure. **(current)**
-2. Data research and design (no code).
-3. Data ingestion and randomization checks.
-4. EDA.
-5. Evaluation harness and naive baselines.
-6. Meta-learners (S, T, X).
+1. Project setup — env, tooling, folder structure. ✓
+2. Data research and design (no code). ✓
+3. Data ingestion and randomization checks. ✓
+4. EDA. ✓
+5. Evaluation harness and naive baselines. ✓
+6. Meta-learners (S, T, X). **(next)**
 7. Direct uplift models.
 8. Evaluation, model selection, explainability.
 9. Serving (FastAPI).
