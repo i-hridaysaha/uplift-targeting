@@ -511,6 +511,10 @@ def fig_criteo_feature_dist(c: pd.DataFrame) -> None:
     for patch in bp["boxes"]:
         patch.set_facecolor(VISIT)
         patch.set_alpha(0.5)
+    # Rasterize the outlier clouds: ~1M points would otherwise bloat the SVG to
+    # ~90 MB as individual vector paths. Rasterized, the SVG embeds a small image.
+    for flier in bp["fliers"]:
+        flier.set_rasterized(True)
     ax.axhline(0, color=GRAY, linewidth=0.8, linestyle="--")
     ax.set_ylabel("standardized value (z-score)")
     ax.set_title("Criteo: anonymized features are quantized and heavy-tailed")
