@@ -81,8 +81,8 @@ models/            persisted model artifacts (gitignored)
 4. EDA. ✓
 5. Evaluation harness and naive baselines. ✓
 6. Meta-learners (S, T, X). ✓
-7. Direct uplift models. **(next)**
-8. Evaluation, model selection, explainability.
+7. Direct uplift models (class transformation, uplift tree/forest). ✓
+8. Evaluation, model selection, explainability. **(next)**
 9. Serving (FastAPI).
 10. Streamlit demo.
 11. Docs, deploy, release.

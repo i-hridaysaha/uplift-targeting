@@ -40,13 +40,17 @@ def _auuc_norm(y: np.ndarray, uplift: np.ndarray, treatment: np.ndarray) -> floa
     return auuc(y, uplift, treatment).normalized
 
 
-def _meta_scorer(cls: type) -> Scorer:
-    """Wrap a meta-learner class into a fit-then-predict-uplift scorer."""
+def model_scorer(cls: type, **kwargs: object) -> Scorer:
+    """Wrap any ``fit(X, t, y)`` / ``predict_uplift(X)`` model into a scorer.
+
+    Extra keyword arguments are passed to the model constructor, so a caller can,
+    e.g., cap the forest's per-tree sample size on the large dataset.
+    """
 
     def scorer(
         train: pd.DataFrame, eval_frame: pd.DataFrame, features: list[str], outcome: str, seed: int
     ) -> np.ndarray:
-        model = cls(seed=seed)
+        model = cls(seed=seed, **kwargs)
         model.fit(train[features], train[TREATMENT_COL].to_numpy(), train[outcome].to_numpy())
         return model.predict_uplift(eval_frame[features])
 
@@ -73,9 +77,9 @@ def _treat_everyone_scorer(
 MODELS: dict[str, Scorer] = {
     "treat_everyone": _treat_everyone_scorer,
     "response_model": _response_scorer,
-    "s_learner": _meta_scorer(SLearner),
-    "t_learner": _meta_scorer(TLearner),
-    "x_learner": _meta_scorer(XLearner),
+    "s_learner": model_scorer(SLearner),
+    "t_learner": model_scorer(TLearner),
+    "x_learner": model_scorer(XLearner),
 }
 
 
