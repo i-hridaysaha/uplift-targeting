@@ -80,8 +80,8 @@ models/            persisted model artifacts (gitignored)
 3. Data ingestion and randomization checks. ✓
 4. EDA. ✓
 5. Evaluation harness and naive baselines. ✓
-6. Meta-learners (S, T, X). **(next)**
-7. Direct uplift models.
+6. Meta-learners (S, T, X). ✓
+7. Direct uplift models. **(next)**
 8. Evaluation, model selection, explainability.
 9. Serving (FastAPI).
 10. Streamlit demo.
