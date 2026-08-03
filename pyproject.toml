@@ -10,6 +10,8 @@ dependencies = [
     "pandas",
     "scikit-learn",
     "lightgbm",
+    "scikit-uplift>=0.5.1",
+    "pyarrow>=25.0.0",
 ]
 
 [dependency-groups]
