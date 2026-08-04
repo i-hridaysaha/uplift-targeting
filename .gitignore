@@ -1,5 +1,6 @@
 # Local-only project memory — never commit (contains working notes / kept private)
 case_study.md
+PROJECT.md
 DATA.md
 MODELING.md
 EVAL.md

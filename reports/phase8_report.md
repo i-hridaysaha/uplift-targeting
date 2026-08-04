@@ -79,9 +79,9 @@ the honest-negative finding.
 
 The response baseline is the tallest bar, and **every uplift model has a std larger
 than its mean** — the error bars all straddle zero. On 51k development rows the visit
-uplift signal is too thin to model. This is the negative result PROJECT.md
-anticipated, and it is not a bug: it is what a small dataset with a ~6-point average
-effect and a ~15% base rate gives you.
+uplift signal is too thin to model. This is an anticipated negative result, and it
+is not a bug: it is what a small dataset with a ~6-point average effect and a ~15%
+base rate gives you.
 
 ### Criteo (dev = 800,000 rows; visit base rate ~4.7%)
 
