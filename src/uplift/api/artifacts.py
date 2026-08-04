@@ -54,6 +54,8 @@ FOLD_COL = "fold"
 PRIMARY_OUTCOME = "visit"
 VALUE_OUTCOME = "conversion"
 BUNDLE_SUFFIX = "_policy.pkl"
+REFERENCE_SUFFIX = "_holdout_reference.parquet"
+SCORE_COL = "score"
 
 # The Phase 8 verdict, made servable (MODELING.md, D26): Hillstrom is the
 # honest-negative response model; Criteo is the uplift forest.
@@ -165,6 +167,25 @@ def build_bundle(frame: pd.DataFrame, dataset: str, seed: int = SEED) -> PolicyB
     )
 
 
+def build_reference_frame(frame: pd.DataFrame, dataset: str, bundle: PolicyBundle) -> pd.DataFrame:
+    """Slim hold-out reference for the demo: features + labels + the model's score.
+
+    The Streamlit demo reads this table (not the processed data or the running API)
+    so every chart is a pure function of an artifact the model never trained on: the
+    untouched hold-out rows, their readable feature columns (dtypes preserved, so
+    Hillstrom categoricals stay filterable), the ``visit`` and ``conversion``
+    outcomes, the ``treatment`` flag, and the per-row ``score`` from the chosen
+    model. One row per hold-out customer.
+    """
+    features = FEATURES[dataset]
+    hold = frame[frame[FOLD_COL] == HOLDOUT_FOLD]
+    if hold.empty:
+        raise ValueError(f"{dataset}: frame has no hold-out rows (fold == -1); cannot build.")
+    out = hold[[*features, PRIMARY_OUTCOME, VALUE_OUTCOME, TREATMENT_COL]].copy()
+    out[SCORE_COL] = score_model(bundle.model, bundle.model_kind, hold[features])
+    return out.reset_index(drop=True)
+
+
 # --- Scoring ----------------------------------------------------------------
 
 
@@ -195,7 +216,7 @@ def score_records(records: list[dict[str, object]], bundle: PolicyBundle) -> np.
 # --- Policy -----------------------------------------------------------------
 
 
-def _resolve_k(
+def resolve_k(
     n: int, budget: float | None, k: int | None, fraction: float | None, cost: float
 ) -> int:
     """Turn exactly one of budget/k/fraction into a contact count ``k`` in ``[0, n]``."""
@@ -236,7 +257,7 @@ def policy(
     value_point = (
         VALUE_PER_CONVERSION if value_per_conversion is None else float(value_per_conversion)
     )
-    resolved_k = _resolve_k(n, budget, k, fraction, cost_point)
+    resolved_k = resolve_k(n, budget, k, fraction, cost_point)
     band = incremental_value_band(
         bundle.ref_conversion,
         bundle.ref_score,
@@ -290,3 +311,21 @@ def load_bundles(models_dir: str | Path) -> dict[str, PolicyBundle]:
         bundle = load_bundle(path)
         bundles[bundle.dataset] = bundle
     return bundles
+
+
+def reference_path(models_dir: str | Path, dataset: str) -> Path:
+    """Return the on-disk path for a dataset's demo reference table under ``models_dir``."""
+    return Path(models_dir) / f"{dataset}{REFERENCE_SUFFIX}"
+
+
+def save_reference_frame(frame: pd.DataFrame, dataset: str, models_dir: str | Path) -> Path:
+    """Write a demo reference table to ``models_dir`` as parquet and return the path."""
+    path = reference_path(models_dir, dataset)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_parquet(path, index=False)
+    return path
+
+
+def load_reference_frame(path: str | Path) -> pd.DataFrame:
+    """Load a single demo reference table from ``path`` (category dtypes preserved)."""
+    return pd.read_parquet(path)

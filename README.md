@@ -84,8 +84,8 @@ models/            persisted model artifacts (gitignored)
 7. Direct uplift models (class transformation, uplift tree/forest). ✓
 8. Evaluation, model selection, explainability. ✓
 9. Serving (FastAPI). ✓
-10. Streamlit demo. **(next)**
-11. Docs, deploy, release.
+10. Streamlit demo. ✓
+11. Docs, deploy, release. **(next)**
 
 ## Limitations
 
