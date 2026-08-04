@@ -944,6 +944,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "lightgbm" },
+    { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pyarrow" },
@@ -964,6 +965,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "lightgbm" },
+    { name = "matplotlib", specifier = ">=3.9" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pyarrow", specifier = ">=25.0.0" },

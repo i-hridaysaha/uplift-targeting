@@ -12,6 +12,7 @@ dependencies = [
     "lightgbm",
     "scikit-uplift>=0.5.1",
     "pyarrow>=25.0.0",
+    "matplotlib>=3.9",
     "fastapi>=0.141.1",
     "uvicorn>=0.52.1",
     "streamlit>=1.59.1",

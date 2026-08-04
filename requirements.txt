@@ -1,0 +1,9 @@
+# Dependencies for the Streamlit Community Cloud deploy.
+#
+# Installs the local `uplift` package (src layout) together with the runtime
+# dependencies declared in pyproject.toml, so `import uplift` works on the
+# hosted app the same way it does after `uv sync` locally.
+#
+# Local development pins exact versions through uv.lock (`uv sync`); this file
+# is only for the pip-based cloud build.
+.
