@@ -12,12 +12,15 @@ dependencies = [
     "lightgbm",
     "scikit-uplift>=0.5.1",
     "pyarrow>=25.0.0",
+    "fastapi>=0.141.1",
+    "uvicorn>=0.52.1",
 ]
 
 [dependency-groups]
 dev = [
     "ruff",
     "pytest",
+    "httpx>=0.28.1",
 ]
 
 [build-system]
