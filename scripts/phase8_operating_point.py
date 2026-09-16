@@ -16,7 +16,11 @@ untouched hold-out once, and reports, at a fixed targeted fraction:
 A single hold-out draw has no fold band, so the standard error and the counts are
 the honesty here; they are printed, not hidden.
 
-Writes ``reports/phase8_operating_point.csv``. Read-only over ``data/processed/``.
+Writes ``reports/phase8_operating_point.csv``, plus the two tables the case-study
+figures are drawn from: ``reports/phase8_holdout_curves.csv`` (each ranking's
+size-corrected Qini curve on the hold-out, sampled on a fixed grid of targeted
+fractions) and ``reports/phase8_deciles.csv`` (observed visit uplift per predicted
+decile with the arm counts). Read-only over ``data/processed/``.
 
 Run: ``uv run python scripts/phase8_operating_point.py``
      ``uv run python scripts/phase8_operating_point.py --datasets criteo --fraction 0.1``
@@ -108,17 +112,65 @@ def operating_point(
     }
 
 
-def run(name: str, fraction: float, seed: int = SEED) -> pd.DataFrame:
-    """Fit on dev, score the hold-out once per model, and read the operating point."""
+CURVE_GRID = np.linspace(0.0, 1.0, 201)
+
+
+def curve_table(hold: pd.DataFrame, uplift: np.ndarray) -> pd.DataFrame:
+    """The size-corrected Qini curve of ``visit`` on the hold-out, read on a fixed grid."""
+    y = hold[PRIMARY_OUTCOME].to_numpy()
+    t = hold[TREATMENT_COL].to_numpy()
+    x, curve = qini_curve(y, uplift, t)
+    n = len(hold)
+    return pd.DataFrame(
+        {"fraction": CURVE_GRID, "incremental_visits": np.interp(CURVE_GRID * n, x, curve)}
+    )
+
+
+def decile_table(hold: pd.DataFrame, uplift: np.ndarray) -> pd.DataFrame:
+    """Observed visit uplift per predicted decile, with the arm counts behind each bar."""
+    table = uplift_by_decile(
+        hold[PRIMARY_OUTCOME].to_numpy(), uplift, hold[TREATMENT_COL].to_numpy()
+    )
+    return table[
+        [
+            "decile",
+            "n_treated",
+            "n_control",
+            "response_treated",
+            "response_control",
+            "observed_uplift",
+        ]
+    ]
+
+
+def run(
+    name: str, fraction: float, seed: int = SEED
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Fit on dev, score the hold-out once per model, and read the operating point.
+
+    Returns the operating-point rows, the curve samples and the decile tables, each
+    tagged with the dataset and model.
+    """
     frame = pd.read_parquet(PROCESSED / f"{name}.parquet")
     hold = frame[frame[FOLD_COL] == HOLDOUT_FOLD]
-    rows = []
+    rows, curves, deciles = [], [], []
     for model_name, scorer in scorers(name).items():
         uplift = holdout_uplift(frame, FEATURES[name], PRIMARY_OUTCOME, scorer, seed=seed)
         row: dict[str, object] = {"dataset": name, "model": model_name}
         row.update(operating_point(hold, uplift, fraction))
         rows.append(row)
-    return pd.DataFrame(rows)
+        for table, sink in (
+            (curve_table(hold, uplift), curves),
+            (decile_table(hold, uplift), deciles),
+        ):
+            table.insert(0, "model", model_name)
+            table.insert(0, "dataset", name)
+            sink.append(table)
+    return (
+        pd.DataFrame(rows),
+        pd.concat(curves, ignore_index=True),
+        pd.concat(deciles, ignore_index=True),
+    )
 
 
 def _format(table: pd.DataFrame) -> str:
@@ -150,17 +202,24 @@ def main(argv: list[str] | None = None) -> None:
 
     names = [n.strip() for n in args.datasets.split(",") if n.strip()]
     REPORTS.mkdir(parents=True, exist_ok=True)
-    tables = []
+    tables, curves, deciles = [], [], []
     for name in names:
         start = time.perf_counter()
-        table = run(name, args.fraction, seed=args.seed)
+        table, curve, decile = run(name, args.fraction, seed=args.seed)
         tables.append(table)
+        curves.append(curve)
+        deciles.append(decile)
         print(f"\n=== {name} @ top {args.fraction:.0%} ({time.perf_counter() - start:.1f}s) ===")
         print(_format(table))
 
-    out = REPORTS / "phase8_operating_point.csv"
-    pd.concat(tables, ignore_index=True).to_csv(out, index=False)
-    print(f"\nwrote {out}")
+    outputs = {
+        "phase8_operating_point.csv": tables,
+        "phase8_holdout_curves.csv": curves,
+        "phase8_deciles.csv": deciles,
+    }
+    for filename, parts in outputs.items():
+        pd.concat(parts, ignore_index=True).to_csv(REPORTS / filename, index=False)
+    print(f"\nwrote {', '.join(str(REPORTS / f) for f in outputs)}")
 
 
 if __name__ == "__main__":

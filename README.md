@@ -51,6 +51,14 @@ at +0.0936 where the s_learner falls to +0.0806. The forest's own margin over th
 (0.0028) sits inside both bands, and the baseline leads the single hold-out draw, so
 the honest reading is "draws level at scale", not "beats".
 
+More draws say the same, and less kindly to the tie-break: re-splitting the dev rows
+under three more seeds (`scripts/phase8_repeated_cv.py`, 20 folds in all) leaves the
+forest at +0.0889 ± 0.0081 against the baseline's +0.0876 ± 0.0055 (13 of 20 folds)
+and the s_learner at +0.0922 ± 0.0099, which leads the forest on 14 of 20 folds. Read
+as paired tests on the five seed-42 folds (`scripts/phase8_paired_folds.py`), no pair
+separates (p between 0.36 and 0.51). The forest ships on the strength of the 200,000-row
+hold-out, where the s_learner collapsed; the band-width argument alone would not carry it.
+
 ### Hillstrom (readable case, 64k customers)
 
 | Model | Qini (5-fold CV) | Qini (hold-out) |
@@ -66,8 +74,10 @@ the honest reading is "draws level at scale", not "beats".
 
 No uplift model clears the response bar on CV, and every one has **std > mean** —
 indistinguishable from zero, and from the baseline, whose own band overlaps all of
-them. The rule defaults to the cheapest model when nothing is distinguishable, so the
-chosen model here is the response baseline, labeled openly as a **negative result**.
+them. Twenty folds across four seeds agree: the baseline leads the forest on 14 of 20
+and the s_learner on 13 of 20. The rule defaults to the cheapest model when nothing is
+distinguishable, so the chosen model here is the response baseline, labeled openly as a
+**negative result**.
 The single hold-out draw disagrees (every uplift model swings above the baseline; at
 the top 10% the forest's decile carries +0.151 visit uplift against the baseline's
 +0.074, standard errors about 0.02), and that disagreement is recorded as the reason
@@ -186,7 +196,9 @@ uv run python scripts/phase4_eda.py      # EDA report + figures
 uv run python scripts/phase6_meta.py     # meta-learner leaderboard
 uv run python scripts/phase7_direct.py   # direct-model leaderboard
 uv run python scripts/phase8_eval.py     # full field, hold-out, selection, drivers
-uv run python scripts/phase8_operating_point.py  # shipped vs baseline at the top 10%
+uv run python scripts/phase8_operating_point.py  # shipped vs baseline at the top 10%, curves, deciles
+uv run python scripts/phase8_paired_folds.py     # paired fold-by-fold reads of the CV board
+uv run python scripts/phase8_repeated_cv.py      # three more seeds for the three models that matter
 uv run python scripts/phase9_persist.py  # persist the chosen policy bundles
 ```
 
