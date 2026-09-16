@@ -164,10 +164,11 @@ def _verdict_html(honest: bool) -> str:
             f"are ranked by <b>{_score_phrase(True)}</b>, not uplift."
         )
     else:
-        pill = '<span class="pill pill-green">Uplift wins</span>'
+        pill = '<span class="pill pill-green">Uplift shipped</span>'
         msg = (
-            "Uplift modeling beats response targeting here, so customers are ranked by "
-            f"<b>{_score_phrase(False)}</b>."
+            "Uplift modeling draws level with response targeting here (a cross-validated tie; "
+            "the baseline leads the single hold-out draw). Customers are ranked by "
+            f"<b>{_score_phrase(False)}</b> because that score can also say whom not to contact."
         )
     return f'<div class="verdict">{pill}<span class="verdict-msg">{msg}</span></div>'
 

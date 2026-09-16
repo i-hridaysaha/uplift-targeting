@@ -9,6 +9,9 @@ in-memory bundles.
 
 from __future__ import annotations
 
+import dataclasses
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -16,13 +19,16 @@ from fastapi.testclient import TestClient
 
 from uplift.api.app import create_app
 from uplift.api.artifacts import (
+    BUNDLE_FORMAT,
     build_bundle,
+    environment_versions,
     frame_from_records,
     load_bundle,
     load_bundles,
     policy,
     save_bundle,
     score_records,
+    version_mismatches,
 )
 from uplift.data.schema import CRITEO_FEATURES, HILLSTROM_FEATURES
 from uplift.data.splits import assign_splits
@@ -222,6 +228,31 @@ def test_save_load_roundtrip(criteo_bundle, tmp_path):
 
 def test_load_bundles_missing_dir_is_empty(tmp_path):
     assert load_bundles(tmp_path / "nope") == {}
+
+
+def test_bundle_is_stamped_with_its_environment(criteo_bundle):
+    assert criteo_bundle.bundle_format == BUNDLE_FORMAT
+    assert criteo_bundle.versions == environment_versions()
+    assert {"uplift", "python", "lightgbm", "numpy"} <= set(criteo_bundle.versions)
+    assert version_mismatches(criteo_bundle) == {}
+
+
+def test_load_warns_when_model_libraries_moved(criteo_bundle, tmp_path):
+    stale = dataclasses.replace(criteo_bundle, versions={**criteo_bundle.versions, "numpy": "0.0"})
+    save_bundle(stale, tmp_path)
+    with pytest.warns(RuntimeWarning, match="numpy: built with 0.0"):
+        loaded = load_bundle(tmp_path / "criteo_policy.pkl")
+    assert version_mismatches(loaded) == {"numpy": ("0.0", environment_versions()["numpy"])}
+
+
+def test_unstamped_bundle_loads_and_reports_every_library(criteo_bundle, tmp_path):
+    legacy = dataclasses.replace(criteo_bundle, versions={})
+    save_bundle(legacy, tmp_path)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        loaded = load_bundle(tmp_path / "criteo_policy.pkl")
+    assert any("unstamped" in str(w.message) for w in caught)
+    assert set(version_mismatches(loaded)) == {"lightgbm", "numpy"}
 
 
 # --- API endpoints ----------------------------------------------------------

@@ -115,8 +115,10 @@ def leaderboard(
     """Score every model out-of-fold and return their Qini/AUUC bands as a table.
 
     One row per model with the cross-validated mean and std of the (headline,
-    normalized) Qini and AUUC coefficients across folds. Hold-out rows are dropped;
-    all bands come from the CV folds only.
+    normalized) Qini and AUUC coefficients across folds, plus one ``qini_fold_<k>``
+    column per fold so two models can be compared fold by fold (a paired read of
+    the same five draws) rather than only through their summary bands. Hold-out
+    rows are dropped; all bands come from the CV folds only.
     """
     models = MODELS if models is None else models
     dev = frame[frame[FOLD_COL] != HOLDOUT_FOLD].reset_index(drop=True)
@@ -129,14 +131,14 @@ def leaderboard(
         uplift = crossfit_oof(dev, features, outcome, scorer, seed=seed)
         qini = fold_metric_band(y, uplift, t, fold, _qini_norm)
         area = fold_metric_band(y, uplift, t, fold, _auuc_norm)
-        rows.append(
-            {
-                "model": name,
-                "qini_mean": qini.mean,
-                "qini_std": qini.std,
-                "auuc_mean": area.mean,
-                "auuc_std": area.std,
-                "n_folds": len(qini.per_fold),
-            }
-        )
+        row: dict[str, object] = {
+            "model": name,
+            "qini_mean": qini.mean,
+            "qini_std": qini.std,
+            "auuc_mean": area.mean,
+            "auuc_std": area.std,
+            "n_folds": len(qini.per_fold),
+        }
+        row.update({f"qini_fold_{label}": value for label, value in qini.per_fold.items()})
+        rows.append(row)
     return pd.DataFrame(rows)

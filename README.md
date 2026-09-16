@@ -6,13 +6,14 @@ decision science, not prediction: a churn model tells you who will leave, not wh
 stays *because* you intervened. Those are different people, and the gap between them
 is where the budget goes. This project lives in that gap.
 
+[![CI](https://github.com/i-hridaysaha/uplift-targeting/actions/workflows/ci.yml/badge.svg)](https://github.com/i-hridaysaha/uplift-targeting/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 
 📄 **Case study:** [hridaysaha.com/projects/uplift-targeting](https://www.hridaysaha.com/projects/uplift-targeting)
 🔗 **Live demo:** [uplift-targeting.streamlit.app](https://uplift-targeting-zpatkwkjfwqvnqdxpu9rzc.streamlit.app/)
 
-![The Criteo scale case: uplift beats response targeting, ranked by predicted uplift](assets/demo/criteo_hero.png)
+![The Criteo scale case in the live demo: customers ranked by predicted uplift, with the verdict pill and the hold-out Qini curve](assets/demo/criteo_hero.png)
 
 ## Results
 
@@ -27,8 +28,8 @@ respond" is real, but slim, dataset-dependent, and split-sensitive.**
 Primary outcome is **visit**. Scores are out-of-fold from 5-fold stratified CV
 (seed 42); the headline is normalized Qini (0–1, higher is better) as **mean ± std
 across folds** — the std is the honest unit, not a decoration. The **hold-out**
-column is a single unbiased number on the reserved 20% split, used only to break
-ties.
+column is a single unbiased number on the reserved 20% split, scored once per model
+to confirm the pick; it never sets the headline.
 
 ### Criteo (scale case, 1M subsample)
 
@@ -43,10 +44,12 @@ ties.
 | uplift_tree | +0.0784 ± 0.0055 | +0.0876 |
 | **uplift_forest** *(chosen)* | **+0.0905 ± 0.0067** | +0.0936 |
 
-Only the s_learner and the uplift_forest beat the response bar (+0.0877) on CV, and
-their bands overlap — a statistical tie. The rule breaks it on stability: the forest
-has the tighter band **and** generalizes to the hold-out, where the s_learner
-collapses.
+Only the s_learner and the uplift_forest clear the response bar (+0.0877) on the CV
+mean, and their bands overlap — a statistical tie. The rule breaks it on stability
+(the forest's band is tighter), and the hold-out confirms the pick: the forest holds
+at +0.0936 where the s_learner falls to +0.0806. The forest's own margin over the bar
+(0.0028) sits inside both bands, and the baseline leads the single hold-out draw, so
+the honest reading is "draws level at scale", not "beats".
 
 ### Hillstrom (readable case, 64k customers)
 
@@ -62,9 +65,15 @@ collapses.
 | uplift_forest | +0.0129 ± 0.0155 | +0.0661 |
 
 No uplift model clears the response bar on CV, and every one has **std > mean** —
-indistinguishable from zero. The chosen model here is the response baseline, labeled
-openly as a **negative result**. A model that quietly loses to a baseline, dressed
-up as a win, is the failure mode this project is built to avoid.
+indistinguishable from zero, and from the baseline, whose own band overlaps all of
+them. The rule defaults to the cheapest model when nothing is distinguishable, so the
+chosen model here is the response baseline, labeled openly as a **negative result**.
+The single hold-out draw disagrees (every uplift model swings above the baseline; at
+the top 10% the forest's decile carries +0.151 visit uplift against the baseline's
++0.074, standard errors about 0.02), and that disagreement is recorded as the reason
+to want more data, not resolved by picking the draw one prefers. A model that quietly
+loses to a baseline, dressed up as a win, is the failure mode this project is built
+to avoid; so is a draw that quietly overturns a band.
 
 <p align="center">
   <img src="assets/phase8/cv_leaderboard_criteo.png" width="49%" alt="Criteo cross-validated leaderboard with confidence bands" />
@@ -79,13 +88,20 @@ off the conversion Qini curve, and price them. Because value-per-conversion and
 cost-per-contact are **assumptions, not measurements**, every figure ships as a
 **range** that sweeps both — never a single confident number.
 
-| Customers targeted | Incremental conversions | Net value (point) | Net value (band) |
-|---|---|---|---|
-| 20,000 (top 10%, Criteo) | +23.8 | $767 | −$8,811 to $2,567 |
+| Ranking (top 10%, Criteo hold-out) | Top-decile visit uplift | Incremental conversions | Net value (point) | Net value (band) |
+|---|---|---|---|---|
+| **uplift_forest** (shipped) | +0.072 (se 0.008) | +23.8 (se 52) | $767 | −$8,811 to $2,567 |
+| response_model (baseline) | +0.063 (se 0.010) | +44.2 (se 54) | $3,147 | −$7,788 to $5,636 |
 
 Point uses $116.36 / conversion and $0.10 / contact; the band sweeps value $50–$150
-× cost $0.05–$0.50. The incremental-conversions figure is assumption-free. Move the
-budget slider in the demo and the whole band updates live.
+× cost $0.05–$0.50. The incremental-conversions figure is assumption-free but thin:
+it is the difference of a few hundred treated conversions and a few dozen control
+conversions scaled by the arm ratio, so its sampling error is larger than the
+estimate for both rankings. Where the policy spends, the forest captures more of the
+outcome it was fitted on (1,240 vs 1,082 incremental visits at 10%, 68% vs 59% of
+the treat-everyone total) and the two rankings are inside each other's noise on the
+priced outcome. Move the budget slider in the demo and the whole band updates live.
+Table from `reports/phase8_operating_point.csv`.
 
 ## Why this is non-trivial
 
@@ -98,7 +114,7 @@ budget slider in the demo and the whole band updates live.
 - **The honest negative is real.** On Hillstrom, uplift does not beat response
   targeting; that is reported as the finding, not buried.
 - **Leakage-safe by construction.** Stratified 5-fold CV plus an untouched 20%
-  hold-out that only breaks ties; the Qini/AUUC harness is a from-scratch
+  hold-out scored once to confirm the pick; the Qini/AUUC harness is a from-scratch
   reimplementation cross-checked against `scikit-uplift` to machine precision, so the
   measuring stick is trusted *before* any model is judged by it.
 - **Thin signal, sleeping dogs.** Uplift is a difference of two noisy quantities,
@@ -109,7 +125,7 @@ budget slider in the demo and the whole band updates live.
 
 Data → binary treatment → stratified splits + balance checks → a multi-model bakeoff
 (baselines, meta-learners, direct uplift models) → cross-validated Qini / AUUC /
-decile with a hold-out tie-break → selection + permutation-importance drivers → a
+decile with a hold-out confirmation → selection + permutation-importance drivers → a
 priced `PolicyBundle` served through a FastAPI API and a live Streamlit demo. Every
 layer is pure logic separated from I/O, unit-tested (130+ tests), and driven by
 `uv run`.
@@ -145,8 +161,11 @@ transparent and tested.
 
 The winner is chosen on **normalized Qini (0–1) as mean ± std across 5 folds** —
 under a high-variance metric the std *is* the result, so a band that overlaps a
-baseline is a tie, not a win. Ties break on stability plus a single unbiased number
-on the untouched 20% hold-out; **test is never tuned on.** A decile chart checks that
+baseline is a tie, not a win. An uplift model must clear the response bar on the CV
+mean to be considered at all (the burden of proof sits with the complex model); among
+those that do, ties break on stability (the tighter band), then interpretability, and
+the untouched 20% hold-out is scored once per model to confirm; **test is never tuned
+on.** A decile chart checks that
 high-scored people actually respond more, and incremental value ships as a swept
 dollar band under stated cost/value assumptions.
 
@@ -167,6 +186,7 @@ uv run python scripts/phase4_eda.py      # EDA report + figures
 uv run python scripts/phase6_meta.py     # meta-learner leaderboard
 uv run python scripts/phase7_direct.py   # direct-model leaderboard
 uv run python scripts/phase8_eval.py     # full field, hold-out, selection, drivers
+uv run python scripts/phase8_operating_point.py  # shipped vs baseline at the top 10%
 uv run python scripts/phase9_persist.py  # persist the chosen policy bundles
 ```
 
@@ -180,7 +200,10 @@ uv run streamlit run app/streamlit_app.py  # http://localhost:8501
 `/policy` takes a budget, a count, or a fraction plus optional value/cost overrides
 and returns the incremental-value band with its assumptions echoed. The hosted demo
 runs on **Streamlit Community Cloud** (free tier), in-process over the `uplift`
-library — one deployable process, no separate API to host.
+library — one deployable process, no separate API to host. Each policy bundle is
+stamped with the `lightgbm` and `numpy` versions that built it, and loading under
+different versions prints a warning naming both, so a dependency bump cannot move a
+score silently.
 
 ## Repo map
 
@@ -199,6 +222,8 @@ models/   persisted policy bundles (small demo artifacts committed; rest gitigno
 ```
 
 Full write-up with all six figures: [`reports/phase8_report.md`](reports/phase8_report.md).
+The leaderboard CSV also keeps each model's five per-fold Qini values, so any two
+models can be compared fold by fold rather than only through their summary bands.
 
 ## Limitations & next steps
 

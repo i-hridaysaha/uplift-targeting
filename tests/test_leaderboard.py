@@ -58,6 +58,15 @@ def test_leaderboard_has_a_row_per_model():
     assert (board["n_folds"] == 5).all()
 
 
+def test_leaderboard_keeps_per_fold_qini_that_reproduces_the_band():
+    board = leaderboard(_split_frame(), FEATURES, "outcome").set_index("model")
+    fold_cols = [c for c in board.columns if c.startswith("qini_fold_")]
+    assert len(fold_cols) == 5
+    per_fold = board[fold_cols].to_numpy(dtype="float64")
+    assert np.allclose(per_fold.mean(axis=1), board["qini_mean"])
+    assert np.allclose(per_fold.std(axis=1, ddof=1), board["qini_std"])
+
+
 def test_leaderboard_treat_everyone_is_zero_and_meta_beats_it():
     board = leaderboard(_split_frame(), FEATURES, "outcome").set_index("model")
     assert abs(board.loc["treat_everyone", "qini_mean"]) < 1e-9

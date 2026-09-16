@@ -18,20 +18,29 @@ response probability, not an uplift; ``score_type`` labels that openly. The Crit
 winner is the hand-rolled uplift forest.
 
 Persistence is stdlib ``pickle`` (no extra dependency). Bundles live under
-``models/`` (gitignored); ``scripts/phase9_persist.py`` builds them from the
-processed data.
+``models/``; ``scripts/phase9_persist.py`` builds them from the processed data
+and the four small demo artifacts are committed so the hosted demo can start.
+
+A pickle is only as portable as the libraries that wrote it, so every bundle is
+stamped with the ``uplift``, ``lightgbm`` and ``numpy`` versions at build time and
+``load_bundle`` warns when the loading environment differs. That turns a silent
+scoring drift after a dependency bump into a visible message in the logs.
 """
 
 from __future__ import annotations
 
 import pickle
-from dataclasses import dataclass
+import platform
+import warnings
+from dataclasses import dataclass, field
+from importlib.metadata import version as installed_version
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier
 
+import uplift
 from uplift.data.schema import (
     CRITEO_FEATURES,
     HILLSTROM_FEATURES,
@@ -54,6 +63,10 @@ FOLD_COL = "fold"
 PRIMARY_OUTCOME = "visit"
 VALUE_OUTCOME = "conversion"
 BUNDLE_SUFFIX = "_policy.pkl"
+# Bump when the bundle's fields or their meaning change; loaders can then refuse
+# a layout they do not understand instead of failing on a missing attribute.
+BUNDLE_FORMAT = 1
+STAMPED_PACKAGES = ("lightgbm", "numpy")
 REFERENCE_SUFFIX = "_holdout_reference.parquet"
 SCORE_COL = "score"
 
@@ -95,6 +108,33 @@ class PolicyBundle:
     ref_score: np.ndarray
     ref_conversion: np.ndarray
     ref_treatment: np.ndarray
+    bundle_format: int = BUNDLE_FORMAT
+    versions: dict[str, str] = field(default_factory=dict)
+
+
+def environment_versions() -> dict[str, str]:
+    """The versions a bundle is stamped with: this package, its model libraries, Python."""
+    stamp = {"uplift": uplift.__version__, "python": platform.python_version()}
+    stamp.update({name: installed_version(name) for name in STAMPED_PACKAGES})
+    return stamp
+
+
+def version_mismatches(bundle: PolicyBundle) -> dict[str, tuple[str, str]]:
+    """Model-library versions that differ between the bundle's stamp and this environment.
+
+    Returns ``{package: (stamped, installed)}`` for ``lightgbm`` and ``numpy`` only:
+    those are the libraries whose pickled objects can change meaning between
+    releases. An unstamped bundle (built before the stamp existed) reports every
+    package as ``("unstamped", installed)``.
+    """
+    stamped = getattr(bundle, "versions", None) or {}
+    installed = environment_versions()
+    out: dict[str, tuple[str, str]] = {}
+    for name in STAMPED_PACKAGES:
+        have = stamped.get(name, "unstamped")
+        if have != installed[name]:
+            out[name] = (have, installed[name])
+    return out
 
 
 @dataclass
@@ -164,6 +204,7 @@ def build_bundle(frame: pd.DataFrame, dataset: str, seed: int = SEED) -> PolicyB
         ref_score=ref_score,
         ref_conversion=hold[VALUE_OUTCOME].to_numpy().astype("int8"),
         ref_treatment=hold[TREATMENT_COL].to_numpy().astype("int8"),
+        versions=environment_versions(),
     )
 
 
@@ -296,9 +337,23 @@ def save_bundle(bundle: PolicyBundle, models_dir: str | Path) -> Path:
 
 
 def load_bundle(path: str | Path) -> PolicyBundle:
-    """Load a single pickled bundle from ``path``."""
+    """Load a single pickled bundle from ``path``, warning if its libraries have moved.
+
+    A mismatch does not stop the load (the demo should still start), but it is
+    printed with both versions so a changed score can be traced to its cause.
+    """
     with Path(path).open("rb") as fh:
-        return pickle.load(fh)
+        bundle: PolicyBundle = pickle.load(fh)
+    mismatches = version_mismatches(bundle)
+    if mismatches:
+        detail = ", ".join(f"{k}: built with {a}, running {b}" for k, (a, b) in mismatches.items())
+        warnings.warn(
+            f"{Path(path).name}: model-library version mismatch ({detail}); "
+            "re-run scripts/phase9_persist.py to rebuild the bundle in this environment.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    return bundle
 
 
 def load_bundles(models_dir: str | Path) -> dict[str, PolicyBundle]:
