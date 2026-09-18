@@ -1,0 +1,52 @@
+name: Sync to Hugging Face Space
+
+# Mirrors main to a Hugging Face Space so the hosted demo runs there. The Space
+# reads its settings from YAML front matter at the top of README.md, which GitHub
+# would render as a table, so the front matter is prepended here at push time and
+# never committed. Off until two things exist in this repository's settings:
+#   - a repository variable HF_SPACE, e.g. i-hridaysaha/uplift-targeting
+#   - a repository secret HF_TOKEN with write access to that Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    if: ${{ vars.HF_SPACE != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepend the Space front matter to README.md
+        run: |
+          cat > /tmp/front_matter.md <<'EOF'
+          ---
+          title: Uplift Targeting
+          emoji: 🎯
+          colorFrom: gray
+          colorTo: red
+          sdk: streamlit
+          sdk_version: "1.59.1"
+          python_version: "3.12"
+          app_file: app/streamlit_app.py
+          pinned: false
+          license: mit
+          short_description: Who to treat, ranked by incremental effect and priced as a policy
+          ---
+
+          EOF
+          cat /tmp/front_matter.md README.md > /tmp/README.md
+          mv /tmp/README.md README.md
+      - name: Push to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          git config user.name "Hriday Saha"
+          git config user.email "68123563+i-hridaysaha@users.noreply.github.com"
+          git add README.md
+          git commit -q -m "Add the Space front matter for ${GITHUB_SHA::7}"
+          git push --force "https://oauth:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" HEAD:main
