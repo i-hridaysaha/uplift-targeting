@@ -129,7 +129,7 @@ Point uses $116.36 / conversion and $0.10 / contact; the band sweeps value $50â€
 it is the difference of a few hundred treated conversions and a few dozen control
 conversions scaled by the arm ratio, so its sampling error is larger than the
 estimate for both rankings. Where the policy spends, the forest captures more of the
-outcome it was fitted on (1,240 vs 1,082 incremental visits at 10%, 68% vs 59% of
+outcome it was fitted on (1,240 vs 1,081 incremental visits at 10%, 68% vs 59% of
 the treat-everyone total) and the two rankings are inside each other's noise on the
 priced outcome. Move the budget slider in the demo and the whole band updates live.
 Table from `reports/phase8_operating_point.csv`.
