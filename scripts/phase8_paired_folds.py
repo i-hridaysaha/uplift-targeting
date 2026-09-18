@@ -11,8 +11,11 @@ printed because the one-std tie rule in ``pick_winner`` is a heuristic, and this
 what the same data says when it is read as a test.
 
 Reads ``reports/phase8_leaderboard.csv``; writes ``reports/phase8_paired_folds.csv``.
+Any board with ``qini_fold_<k>`` columns works, e.g. the full-Criteo one.
 
 Run: ``uv run python scripts/phase8_paired_folds.py``
+     ``uv run python scripts/phase8_paired_folds.py --leaderboard reports/phase8_full_criteo.csv \
+         --out reports/phase8_full_criteo_paired.csv``
 """
 
 from __future__ import annotations
@@ -71,6 +74,7 @@ def main(argv: list[str] | None = None) -> None:
     """CLI entry point: one row per dataset and pair."""
     parser = argparse.ArgumentParser(description="Paired per-fold Qini comparison.")
     parser.add_argument("--leaderboard", default=str(REPORTS / "phase8_leaderboard.csv"))
+    parser.add_argument("--out", default=str(REPORTS / "phase8_paired_folds.csv"))
     args = parser.parse_args(argv)
 
     board = pd.read_csv(args.leaderboard)
@@ -85,7 +89,7 @@ def main(argv: list[str] | None = None) -> None:
                 f"std {row['std_diff']:.4f} wins {row['wins_a']}/{row['n_folds']} "
                 f"t {row['t']:+.2f} p {row['p_two_sided']:.2f}   [{row['per_fold_diff']}]"
             )
-    out = REPORTS / "phase8_paired_folds.csv"
+    out = Path(args.out)
     pd.DataFrame(rows).to_csv(out, index=False)
     print(f"\nwrote {out}")
 

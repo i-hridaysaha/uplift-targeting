@@ -243,7 +243,7 @@ def _chart_card(title: str, caption: str, fig) -> None:
     with st.container(border=True):
         st.markdown(f"##### {title}")
         st.caption(caption)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width="stretch")
     plt.close(fig)
 
 

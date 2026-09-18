@@ -15,6 +15,9 @@ Every learner takes ``(X, treatment, y)`` at ``fit`` and returns a 1-D uplift
 array from ``predict_uplift``. ``X`` is feature-only; any stray ``treatment``
 column is dropped defensively so it never leaks in twice. pandas ``category``
 dtypes are consumed natively by LightGBM.
+
+Each learner accepts ``base=`` (see ``uplift.base_learners``) so the same design can
+be re-run over a simpler learner as a robustness check; the default stays LightGBM.
 """
 
 from __future__ import annotations
@@ -23,22 +26,13 @@ from typing import Self
 
 import numpy as np
 import pandas as pd
-from lightgbm import LGBMClassifier, LGBMRegressor
 
+from uplift.base_learners import LGBM_PARAMS, make_classifier, make_regressor
 from uplift.data.schema import TREATMENT_COL
 from uplift.data.splits import SEED
 
-# Shared base learner. Mirrors the response-model baseline's params on purpose so
-# the leaderboard measures the learner design, not tuning. Classifier params drive
-# the outcome models; the X-learner's second stage regresses continuous imputed
-# effects, so it reuses the same core with the regression default objective.
-BASE_LGBM_PARAMS: dict[str, object] = {
-    "n_estimators": 200,
-    "learning_rate": 0.05,
-    "num_leaves": 31,
-    "n_jobs": -1,
-    "verbose": -1,
-}
+# Kept under its old name for the direct models, which build on the same core.
+BASE_LGBM_PARAMS = LGBM_PARAMS
 
 
 def _features_only(x: pd.DataFrame) -> pd.DataFrame:
@@ -54,9 +48,10 @@ class SLearner:
     uplift everywhere.
     """
 
-    def __init__(self, seed: int = SEED, **params: object) -> None:
+    def __init__(self, seed: int = SEED, base: str = "lightgbm", **params: object) -> None:
+        self.base = base
         self.params = {**BASE_LGBM_PARAMS, "random_state": seed, **params}
-        self.model = LGBMClassifier(**self.params)
+        self.model = make_classifier(base, seed, **params)
         self.feature_names_: list[str] = []
 
     def fit(self, x: pd.DataFrame, treatment: np.ndarray, y: np.ndarray) -> Self:
@@ -86,10 +81,11 @@ class TLearner:
     model's, each fitted only on its own arm.
     """
 
-    def __init__(self, seed: int = SEED, **params: object) -> None:
+    def __init__(self, seed: int = SEED, base: str = "lightgbm", **params: object) -> None:
+        self.base = base
         self.params = {**BASE_LGBM_PARAMS, "random_state": seed, **params}
-        self.model_t = LGBMClassifier(**self.params)
-        self.model_c = LGBMClassifier(**self.params)
+        self.model_t = make_classifier(base, seed, **params)
+        self.model_c = make_classifier(base, seed, **params)
 
     def fit(self, x: pd.DataFrame, treatment: np.ndarray, y: np.ndarray) -> Self:
         """Fit ``mu1`` on treated rows and ``mu0`` on control rows."""
@@ -119,13 +115,19 @@ class XLearner:
     training rows unless one is passed explicitly.
     """
 
-    def __init__(self, seed: int = SEED, propensity: float | None = None, **params: object) -> None:
-        clf_params = {**BASE_LGBM_PARAMS, "random_state": seed, **params}
-        reg_params = {**BASE_LGBM_PARAMS, "random_state": seed, **params}
-        self.model_t = LGBMClassifier(**clf_params)
-        self.model_c = LGBMClassifier(**clf_params)
-        self.tau_t = LGBMRegressor(**reg_params)
-        self.tau_c = LGBMRegressor(**reg_params)
+    def __init__(
+        self,
+        seed: int = SEED,
+        propensity: float | None = None,
+        base: str = "lightgbm",
+        **params: object,
+    ) -> None:
+        self.base = base
+        self.params = {**BASE_LGBM_PARAMS, "random_state": seed, **params}
+        self.model_t = make_classifier(base, seed, **params)
+        self.model_c = make_classifier(base, seed, **params)
+        self.tau_t = make_regressor(base, seed, **params)
+        self.tau_c = make_regressor(base, seed, **params)
         self.propensity = propensity
         self.propensity_: float = 0.5
 

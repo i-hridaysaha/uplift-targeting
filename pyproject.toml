@@ -1,6 +1,6 @@
 [project]
 name = "uplift-targeting"
-version = "1.0.0"
+version = "1.1.0"
 description = "Causal uplift targeting: estimate the per-customer incremental effect of a treatment and turn it into a budgeted spend policy."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"

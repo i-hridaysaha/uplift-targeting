@@ -19,7 +19,9 @@ is where the budget goes. This project lives in that gap.
 
 The project is a bakeoff with an honest scoreboard, and the result is the kind
 rarely written down: **uplift's edge over "just target whoever is most likely to
-respond" is real, but slim, dataset-dependent, and split-sensitive.**
+respond" is slim and dataset-dependent. On 64k customers it does not exist; on a
+million rows it sits inside the noise; on all fourteen million Criteo rows it
+resolves, at about four to six percent of the baseline's Qini.**
 
 > **Data note.** Both datasets are public, randomized, and **anonymized** ad/
 > marketing data. The deliverable is the pipeline and the honest evaluation, not the
@@ -58,6 +60,25 @@ and the s_learner at +0.0922 ± 0.0099, which leads the forest on 14 of 20 folds
 as paired tests on the five seed-42 folds (`scripts/phase8_paired_folds.py`), no pair
 separates (p between 0.36 and 0.51). The forest ships on the strength of the 200,000-row
 hold-out, where the s_learner collapsed; the band-width argument alone would not carry it.
+
+### Criteo, all 13,979,592 rows (the scale check)
+
+The same protocol on the whole file (`scripts/phase8_full_criteo.py`, three models,
+11.2M development rows, 2.8M hold-out; balance still passes, worst |SMD| 0.049):
+
+| Model | Qini (5-fold CV) | Qini (hold-out) | Folds above the bar |
+|---|---|---|---|
+| response_model *(baseline)* | +0.0846 ± 0.0013 | +0.0844 | — |
+| s_learner | +0.0899 ± 0.0021 | +0.0893 | 5 of 5 |
+| **uplift_forest** | +0.0881 ± 0.0016 | +0.0887 | 5 of 5 |
+
+Fourteen times the rows shrink the bands about five-fold, and the picture resolves:
+both uplift models clear the baseline on every fold (paired t, p < 0.001 for each)
+and on the hold-out, by +0.0035 (forest) and +0.0053 (s_learner). The edge is small,
+four to six percent of the baseline's Qini, but it is no longer inside the noise.
+The s_learner against the forest is still a tie (gap 0.0018, p 0.07); the rule
+re-applied returns the forest on the tighter band. The full field, the shipped bundle
+and the demo remain on the one-million-row subsample.
 
 ### Hillstrom (readable case, 64k customers)
 
@@ -167,6 +188,17 @@ explainability are all **hand-rolled** over LightGBM/numpy rather than pulled fr
 heavy causal-ML dependency — the dependency set stays small and every method is
 transparent and tested.
 
+**Is the ordering a fact about LightGBM?** Partly. `scripts/phase8_base_swap.py`
+re-runs the response model and the S/T/X designs over a linear base (one-hot
+categoricals, scaled numerics, logistic regression) on the same folds. On Criteo the
+T-learner, worst under LightGBM (+0.0703), is best under the linear base (+0.0960 ±
+0.0123, against a linear response bar of +0.0840), and the S-learner drops to the
+bar. The ranking of *designs* depends on the learner; what survives both is that
+uplift's edge over its own response baseline is small on a million rows. The swap
+also supports, indirectly, the reading that the T- and X-learners lose under LightGBM
+because a flexible model overfits the 150k-row control arm: a twelve-parameter
+linear model does not.
+
 ## Evaluation
 
 The winner is chosen on **normalized Qini (0–1) as mean ± std across 5 folds** —
@@ -199,7 +231,16 @@ uv run python scripts/phase8_eval.py     # full field, hold-out, selection, driv
 uv run python scripts/phase8_operating_point.py  # shipped vs baseline at the top 10%, curves, deciles
 uv run python scripts/phase8_paired_folds.py     # paired fold-by-fold reads of the CV board
 uv run python scripts/phase8_repeated_cv.py      # three more seeds for the three models that matter
+uv run python scripts/phase8_base_swap.py        # the LightGBM-backed designs over a linear base
 uv run python scripts/phase9_persist.py  # persist the chosen policy bundles
+```
+
+The scale check needs the full file ingested once (about five minutes, a few GB):
+
+```bash
+uv run python -m uplift.data.ingest --datasets criteo --criteo-file data/raw/criteo-uplift-v2.1.zip \
+    --criteo-subsample 20000000 --out data/processed_full
+uv run python scripts/phase8_full_criteo.py      # three models on 14M rows, ~11 minutes
 ```
 
 Serve it, or run the demo (the demo reads only `models/` — no API needed):
@@ -247,8 +288,9 @@ models can be compared fold by fold rather than only through their summary bands
   methodology demonstration, not a live retention system.
 - **Next:** observational causal inference (propensity weighting, DAGs) to lift the
   randomized-data restriction; multi-arm and continuous treatments (the R-learner
-  left optional in v1); a full-Criteo (13.98M-row) run to tighten the bands; uplift
-  on the rarer **conversion** outcome, not just visit.
+  left optional in v1); the full field, the bundle and the demo on the full-data fit
+  (the scale check covers three models); uplift on the rarer **conversion** outcome,
+  not just visit.
 
 ## License
 

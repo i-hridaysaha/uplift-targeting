@@ -16,18 +16,13 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from lightgbm import LGBMClassifier
 
+from uplift.base_learners import LGBM_PARAMS, make_classifier
 from uplift.data.schema import TREATMENT_COL
 from uplift.data.splits import SEED
 
-RESPONSE_MODEL_PARAMS = {
-    "n_estimators": 200,
-    "learning_rate": 0.05,
-    "num_leaves": 31,
-    "n_jobs": -1,
-    "verbose": -1,
-}
+# The response model shares the meta-learners' LightGBM core exactly (D24).
+RESPONSE_MODEL_PARAMS = LGBM_PARAMS
 
 
 def treat_everyone_scores(n: int) -> np.ndarray:
@@ -40,6 +35,7 @@ def response_model_scores(
     y_train: np.ndarray,
     x_eval: pd.DataFrame,
     seed: int = SEED,
+    base: str = "lightgbm",
     **lgbm_params: object,
 ) -> np.ndarray:
     """Fit ``P(outcome | X)`` on ``x_train`` and return its probabilities for ``x_eval``.
@@ -53,7 +49,6 @@ def response_model_scores(
     features = x_train.drop(columns=[TREATMENT_COL], errors="ignore")
     eval_features = x_eval.drop(columns=[TREATMENT_COL], errors="ignore")
 
-    params = {**RESPONSE_MODEL_PARAMS, "random_state": seed, **lgbm_params}
-    model = LGBMClassifier(**params)
+    model = make_classifier(base, seed, **lgbm_params)
     model.fit(features, np.asarray(y_train))
     return model.predict_proba(eval_features)[:, 1]

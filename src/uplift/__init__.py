@@ -12,4 +12,4 @@ Submodules are added as the phased roadmap progresses:
 - ``api``    FastAPI serving layer
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
